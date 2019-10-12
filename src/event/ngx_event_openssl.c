@@ -1386,10 +1386,12 @@ static int load_esnikeys(ngx_ssl_t *ssl, ngx_str_t *dir)
 {
     /*
      * Try load any good looking public/private ESNI values found in files in that directory
-     * TODO: Find a more nginx-like way of reading a directory.
+     * TODO: Find a more nginx-like way of reading a directory. There is an ngx_read_dir so
+     * that seems do-able even if may need some more lines of code.
      *
      * This code is derived from what I added to openssl s_server, (and then lighttpd) which 
-     * you can find in apps/s_server.c in my openssl fork, https://github.com/sftcd/openssl
+     * you can find around https://github.com/sftcd/lighttpd1.4/blob/master/src/mod_openssl.c#L984
+     *
      */
     const char *esnidir=(const char*)dir->data;
     SSL_CTX *ctx=ssl->ctx;
@@ -1408,8 +1410,6 @@ static int load_esnikeys(ngx_ssl_t *ssl, ngx_str_t *dir)
         return NGX_ERROR;
     }
     int somekeyworked=0;
-    ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ssl->log, 0,
-        "load_esnikeys, checking in: %s",esnidir);
     while ((ep=readdir(dp))!=NULL) {
         char privname[PATH_MAX];
         char pubname[PATH_MAX];
@@ -1436,24 +1436,31 @@ static int load_esnikeys(ngx_ssl_t *ssl, ngx_str_t *dir)
             struct stat thestat;
             if (stat(pubname,&thestat)==0 && stat(privname,&thestat)==0) {
                 if (SSL_CTX_esni_server_enable(ctx,privname,pubname)!=1) {
-                    //ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ssl->log, 0,
-                    ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
+                    ngx_ssl_error(NGX_LOG_ALERT, ssl->log, 0, 
                         "load_esnikeys, failed for: %s",pubname);
                 } else {
-                    //ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ssl->log, 0,
-                    ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
+                    ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0, 
                         "load_esnikeys, worked for: %s",pubname);
                     somekeyworked=1;
                 }
             }
         }
     }
+    closedir(dp);
     if (somekeyworked==0) {
         ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
             "load_esnikeys failed for all keys but ESNI configured");
         return NGX_ERROR;
     }
-    closedir(dp);
+    int numkeys=0;
+    int rv=SSL_CTX_esni_server_key_status(ssl->ctx,&numkeys);
+    if (rv!=1) {
+        ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
+            "load_esnikeys SSL_CTX_esni_server_key_status failed: %d",rv);
+        return NGX_ERROR;
+    }
+    ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0, 
+            "load_esnikeys, total keys loaded: %d",numkeys);
     return 0;
 }
 
@@ -1471,8 +1478,6 @@ ngx_ssl_esnikeydir(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *dir)
                 "Hey some bad esni stuff happened at %d",__LINE__);
         return NGX_ERROR;
     }
-    ngx_ssl_error(NGX_LOG_INFO, ssl->log, 0, 
-            "esnikeydir: (\"%s\")", dir->data);
     int rv=load_esnikeys(ssl,dir);
     if (rv!=NGX_OK) {
         ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
