@@ -9,6 +9,13 @@
 #include <ngx_core.h>
 #include <ngx_event.h>
 
+#ifndef OPENSSL_NO_ESNI
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <dirent.h>
+#include <openssl/esni.h>
+#endif
+
 
 #define NGX_SSL_PASSWORD_BUFFER_SIZE  4096
 
@@ -1368,6 +1375,113 @@ ngx_ssl_passwords_cleanup(void *data)
     }
 }
 
+#ifndef OPENSSL_NO_ESNI
+
+/* 
+ * load any key files we find in the ssl_esnikeydir directory 
+ * where there are matching <name>.pub and <name>.priv files
+ * that match 
+ */
+static int load_esnikeys(ngx_ssl_t *ssl, ngx_str_t *dir)
+{
+    /*
+     * Try load any good looking public/private ESNI values found in files in that directory
+     * TODO: Find a more nginx-like way of reading a directory.
+     *
+     * This code is derived from what I added to openssl s_server, (and then lighttpd) which 
+     * you can find in apps/s_server.c in my openssl fork, https://github.com/sftcd/openssl
+     */
+    const char *esnidir=(const char*)dir->data;
+    SSL_CTX *ctx=ssl->ctx;
+    size_t elen=strlen(esnidir);
+    if ((elen+7) >= PATH_MAX) {
+        ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
+            "load_esnikeys, error, name too long: %s",esnidir);
+        return NGX_ERROR;
+    }
+    DIR *dp;
+    struct dirent *ep;
+    dp=opendir(esnidir);
+    if (dp==NULL) {
+        ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
+            "load_esnikeys, can't read directory: %s", esnidir);
+        return NGX_ERROR;
+    }
+    int somekeyworked=0;
+    ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ssl->log, 0,
+        "load_esnikeys, checking in: %s",esnidir);
+    while ((ep=readdir(dp))!=NULL) {
+        char privname[PATH_MAX];
+        char pubname[PATH_MAX];
+        /*
+         * If the file name matches *.priv, then check for matching *.pub and try enable that pair
+         */
+        size_t nlen=strlen(ep->d_name);
+        if (nlen>5) {
+            char *last5=ep->d_name+nlen-5;
+            if (strncmp(last5,".priv",5)) {
+                continue;
+            }
+            if ((elen+nlen+1+1)>=PATH_MAX) { /* +1 for '/' and of NULL terminator */
+                closedir(dp);
+                ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
+                    "load_esnikeys, file name too long: %s", esnidir);
+                return NGX_ERROR;
+            }
+            snprintf(privname,PATH_MAX,"%s/%s",esnidir,ep->d_name);
+            snprintf(pubname,PATH_MAX,"%s/%s",esnidir,ep->d_name);
+            pubname[elen+1+nlen-3]='u';
+            pubname[elen+1+nlen-2]='b';
+            pubname[elen+1+nlen-1]=0x00;
+            struct stat thestat;
+            if (stat(pubname,&thestat)==0 && stat(privname,&thestat)==0) {
+                if (SSL_CTX_esni_server_enable(ctx,privname,pubname)!=1) {
+                    //ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ssl->log, 0,
+                    ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
+                        "load_esnikeys, failed for: %s",pubname);
+                } else {
+                    //ngx_log_debug1(NGX_LOG_DEBUG_EVENT, ssl->log, 0,
+                    ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
+                        "load_esnikeys, worked for: %s",pubname);
+                    somekeyworked=1;
+                }
+            }
+        }
+    }
+    if (somekeyworked==0) {
+        ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
+            "load_esnikeys failed for all keys but ESNI configured");
+        return NGX_ERROR;
+    }
+    closedir(dp);
+    return 0;
+}
+
+ngx_int_t
+ngx_ssl_esnikeydir(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *dir)
+{
+    if (!dir) {
+        return NGX_OK;
+    }
+    if (dir->len == 0) {
+        return NGX_OK;
+    }
+    if (ngx_conf_full_name(cf->cycle, dir, 1) != NGX_OK) {
+        ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
+                "Hey some bad esni stuff happened at %d",__LINE__);
+        return NGX_ERROR;
+    }
+    ngx_ssl_error(NGX_LOG_INFO, ssl->log, 0, 
+            "esnikeydir: (\"%s\")", dir->data);
+    int rv=load_esnikeys(ssl,dir);
+    if (rv!=NGX_OK) {
+        ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
+                "Hey some bad esni stuff happened at %d",__LINE__);
+        return rv;
+    }
+    return NGX_OK;
+}
+#endif
 
 ngx_int_t
 ngx_ssl_dhparam(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *file)
