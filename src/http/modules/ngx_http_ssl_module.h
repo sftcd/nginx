@@ -39,6 +39,9 @@ typedef struct {
     ngx_array_t                    *certificate_key_values;
 
     ngx_str_t                       dhparam;
+#ifndef OPENSSL_NO_ESNI
+    ngx_str_t                       esnikeydir;
+#endif
     ngx_str_t                       ecdh_curve;
     ngx_str_t                       client_certificate;
     ngx_str_t                       trusted_certificate;

@@ -199,6 +199,15 @@ static ngx_command_t  ngx_http_ssl_commands[] = {
       offsetof(ngx_http_ssl_srv_conf_t, session_tickets),
       NULL },
 
+#ifndef OPENSSL_NO_ESNI
+    { ngx_string("ssl_esnikeydir"),
+      NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_HTTP_SRV_CONF_OFFSET,
+      offsetof(ngx_http_ssl_srv_conf_t, esnikeydir),
+      NULL },
+#endif
+
     { ngx_string("ssl_session_ticket_key"),
       NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_str_array_slot,
@@ -609,6 +618,9 @@ ngx_http_ssl_create_srv_conf(ngx_conf_t *cf)
      *     sscf->ocsp_responder = { 0, NULL };
      *     sscf->stapling_file = { 0, NULL };
      *     sscf->stapling_responder = { 0, NULL };
+     *     #ifndef OPENSSL_NO_ESNI
+     *     sscf->esnikeydir = { 0, NULL} ;
+     *     #endif
      */
 
     sscf->prefer_server_ciphers = NGX_CONF_UNSET;
@@ -669,6 +681,9 @@ ngx_http_ssl_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_ptr_value(conf->passwords, prev->passwords, NULL);
 
     ngx_conf_merge_str_value(conf->dhparam, prev->dhparam, "");
+#ifndef OPENSSL_NO_ESNI
+    ngx_conf_merge_str_value(conf->esnikeydir, prev->esnikeydir, "");
+#endif
 
     ngx_conf_merge_str_value(conf->client_certificate, prev->client_certificate,
                          "");
@@ -834,6 +849,13 @@ ngx_http_ssl_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
     if (ngx_ssl_dhparam(cf, &conf->ssl, &conf->dhparam) != NGX_OK) {
         return NGX_CONF_ERROR;
     }
+
+
+#ifndef OPENSSL_NO_ESNI
+    if (ngx_ssl_esnikeydir(cf, &conf->ssl, &conf->esnikeydir) != NGX_OK) {
+        return NGX_CONF_ERROR;
+    }
+#endif
 
     if (ngx_ssl_ecdh_curve(cf, &conf->ssl, &conf->ecdh_curve) != NGX_OK) {
         return NGX_CONF_ERROR;
