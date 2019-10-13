@@ -264,7 +264,6 @@ ngx_ssl_init(ngx_log_t *log)
     return NGX_OK;
 }
 
-
 ngx_int_t
 ngx_ssl_create(ngx_ssl_t *ssl, ngx_uint_t protocols, void *data)
 {
@@ -1137,7 +1136,34 @@ ngx_ssl_info_callback(const ngx_ssl_conn_t *ssl_conn, int where, int ret)
             }
         }
     }
+#endif
 
+#ifndef OPENSSL_NO_ESNI
+    if ((where & SSL_CB_HANDSHAKE_DONE) == SSL_CB_HANDSHAKE_DONE) {
+        c = ngx_ssl_get_connection((ngx_ssl_conn_t *) ssl_conn);
+
+        char *hidden=NULL;
+        char *cover=NULL;
+        int esnirv=SSL_get_esni_status(c->ssl->connection,&hidden,&cover);
+        switch (esnirv) {
+        case SSL_ESNI_STATUS_NOT_TRIED:
+            ngx_ssl_error(NGX_LOG_INFO, c->log, 0, "ESNI not attempted");
+            break;
+        case SSL_ESNI_STATUS_FAILED:
+            ngx_ssl_error(NGX_LOG_ERR, c->log, 0, "ESNI tried but failed");
+            break;
+        case SSL_ESNI_STATUS_BAD_NAME:
+            ngx_ssl_error(NGX_LOG_ERR, c->log, 0, "ESNI worked but bad name");
+            break;
+        case SSL_ESNI_STATUS_SUCCESS:
+            ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
+                    "ESNI success cover: %s hidden: %s",cover,hidden);
+            break;
+        default:
+            ngx_ssl_error(NGX_LOG_ERR, c->log, 0, "Error getting ESNI status");
+            break;
+        }
+    }
 #endif
 
     if ((where & SSL_CB_ACCEPT_LOOP) == SSL_CB_ACCEPT_LOOP) {
