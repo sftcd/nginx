@@ -1443,18 +1443,83 @@ ngx_ssl_passwords_cleanup(void *data)
  * where there are matching <name>.pub and <name>.priv files
  * that match 
  */
-static int load_esnikeys(ngx_ssl_t *ssl, ngx_str_t *dir)
+static int load_esnikeys(ngx_ssl_t *ssl, ngx_str_t *dirname)
 {
     /*
      * Try load any good looking public/private ESNI values found in files in that directory
-     * TODO: Find a more nginx-like way of reading a directory. There is an ngx_read_dir so
-     * that seems do-able even if may need some more lines of code.
      *
      * This code is derived from what I added to openssl s_server, (and then lighttpd) which 
      * you can find around https://github.com/sftcd/lighttpd1.4/blob/master/src/mod_openssl.c#L984
      *
      */
-    const char *esnidir=(const char*)dir->data;
+#define PORTABLE
+#ifdef PORTABLE
+    ngx_dir_t thedir;
+    ngx_int_t nrv=ngx_open_dir(dirname,&thedir);
+    if (nrv!=NGX_OK) {
+        ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0,
+            "load_esnikeys, error opening %s at %d",dirname->data,__LINE__);
+        return NGX_ERROR;
+    }
+    char privname[PATH_MAX];
+    char pubname[PATH_MAX];
+    int somekeyworked=0;
+    /*
+     * I really can't see a reason to want >1024 private key files
+     * to have to be checked in a directory, but if there were a
+     * reason then you could change this I guess or make it a 
+     * config setting.
+     */
+    int maxkeyfiles=1024;
+    size_t elen=dirname->len;
+
+    for (;;) {
+        nrv=ngx_read_dir(&thedir);
+        if (nrv!=NGX_OK) {
+            break;
+        }
+        char *den=(char*)ngx_de_name(&thedir);
+        size_t nlen=strlen(den);
+        if (nlen>5) {
+            char *last5=den+nlen-5;
+            if (strncmp(last5,".priv",5)) {
+                continue;
+            }
+            if ((elen+1+nlen+1)>=PATH_MAX) {
+                ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0,
+                    "load_esnikeys, error, name too long: %s with %s",dirname->data,den);
+                continue;
+            }
+            snprintf(privname,PATH_MAX,"%s/%s",dirname->data,den);
+            snprintf(pubname,PATH_MAX,"%s/%s",dirname->data,den);
+            pubname[elen+1+nlen-3]='u';
+            pubname[elen+1+nlen-2]='b';
+            pubname[elen+1+nlen-1]=0x00;
+            if (!--maxkeyfiles) {
+                // just so we don't loop forever, ever
+                ngx_ssl_error(NGX_LOG_ALERT, ssl->log, 0,
+                    "load_esnikeys, too many private key files to check!");
+                ngx_ssl_error(NGX_LOG_ALERT, ssl->log, 0,
+                    "load_esnikeys, maxkeyfiles is hardcoded to 1024, fix if you like!");
+                 return NGX_ERROR;
+            }
+            struct stat thestat;
+            if (stat(pubname,&thestat)==0 && stat(privname,&thestat)==0) {
+                if (SSL_CTX_esni_server_enable(ssl->ctx,privname,pubname)!=1) {
+                    ngx_ssl_error(NGX_LOG_ALERT, ssl->log, 0,
+                        "load_esnikeys, failed for: %s",pubname);
+                } else {
+                    ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0,
+                        "load_esnikeys, worked for: %s",pubname);
+                    somekeyworked=1;
+                }
+            }
+        }
+    }
+    ngx_close_dir(&thedir);
+
+#else
+    const char *esnidir=(const char*)dirname->data;
     SSL_CTX *ctx=ssl->ctx;
     size_t elen=strlen(esnidir);
     if ((elen+7) >= PATH_MAX) {
@@ -1508,6 +1573,7 @@ static int load_esnikeys(ngx_ssl_t *ssl, ngx_str_t *dir)
         }
     }
     closedir(dp);
+#endif
     if (somekeyworked==0) {
         ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
             "load_esnikeys failed for all keys but ESNI configured");
@@ -1522,7 +1588,7 @@ static int load_esnikeys(ngx_ssl_t *ssl, ngx_str_t *dir)
     }
     ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0, 
             "load_esnikeys, total keys loaded: %d",numkeys);
-    return 0;
+    return NGX_OK;
 }
 
 ngx_int_t
