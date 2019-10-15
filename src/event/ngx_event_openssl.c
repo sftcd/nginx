@@ -1192,7 +1192,7 @@ ngx_ssl_info_callback(const ngx_ssl_conn_t *ssl_conn, int where, int ret)
             break;
         case SSL_ESNI_STATUS_SUCCESS:
             ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
-                    "ESNI success cover: %s hidden: %s",cover,hidden);
+                    "ESNI success cover: %s hidden: %s",(cover?cover:"NONE"),(hidden?hidden:"NONE"));
             break;
         default:
             ngx_ssl_error(NGX_LOG_ERR, c->log, 0, "Error getting ESNI status");
