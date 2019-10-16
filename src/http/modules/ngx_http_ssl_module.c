@@ -347,6 +347,14 @@ static ngx_http_variable_t  ngx_http_ssl_vars[] = {
 
     { ngx_string("ssl_curve"), NULL, ngx_http_ssl_variable,
       (uintptr_t) ngx_ssl_get_curve, NGX_HTTP_VAR_CHANGEABLE, 0 },
+#ifndef OPENSSL_NO_ESNI
+    { ngx_string("ssl_esni_status"), NULL, ngx_http_ssl_variable,
+      (uintptr_t) ngx_ssl_get_esni_status, NGX_HTTP_VAR_CHANGEABLE, 0 },
+    { ngx_string("ssl_esni_hidden"), NULL, ngx_http_ssl_variable,
+      (uintptr_t) ngx_ssl_get_esni_hidden, NGX_HTTP_VAR_CHANGEABLE, 0 },
+    { ngx_string("ssl_esni_cover"), NULL, ngx_http_ssl_variable,
+      (uintptr_t) ngx_ssl_get_esni_cover, NGX_HTTP_VAR_CHANGEABLE, 0 },
+#endif
 
     { ngx_string("ssl_curves"), NULL, ngx_http_ssl_variable,
       (uintptr_t) ngx_ssl_get_curves, NGX_HTTP_VAR_CHANGEABLE, 0 },

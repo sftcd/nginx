@@ -5260,6 +5260,76 @@ ngx_ssl_get_cipher_name(ngx_connection_t *c, ngx_pool_t *pool, ngx_str_t *s)
     return NGX_OK;
 }
 
+#ifndef OPENSSL_NO_ESNI
+ngx_int_t
+ngx_ssl_get_esni_status(ngx_connection_t *c, ngx_pool_t *pool, ngx_str_t *s)
+{
+    char *hidden;
+    char *cover;
+    char buf[PATH_MAX];
+    int esnirv=SSL_get_esni_status(c->ssl->connection,&hidden,&cover);
+    switch (esnirv) {
+    case SSL_ESNI_STATUS_NOT_TRIED:
+        snprintf(buf,PATH_MAX,"ESNI not attempted");
+        break;
+    case SSL_ESNI_STATUS_FAILED:
+        snprintf(buf, PATH_MAX, "ESNI tried but failed");
+        break;
+    case SSL_ESNI_STATUS_BAD_NAME:
+        snprintf(buf, PATH_MAX,"ESNI worked but bad name");
+        break;
+    case SSL_ESNI_STATUS_SUCCESS:
+        snprintf(buf, PATH_MAX, "ESNI success");
+        break;
+    default:
+        snprintf(buf, PATH_MAX, "Error getting ESNI status");
+        break;
+    }
+    s->len = ngx_strlen(buf);
+    s->data = ngx_pnalloc(pool, s->len);
+    ngx_memcpy(s->data,buf,s->len);
+    return NGX_OK;
+}
+
+ngx_int_t
+ngx_ssl_get_esni_hidden(ngx_connection_t *c, ngx_pool_t *pool, ngx_str_t *s)
+{
+    char *hidden;
+    char *cover;
+    int esnirv=SSL_get_esni_status(c->ssl->connection,&hidden,&cover);
+    if (esnirv==SSL_ESNI_STATUS_SUCCESS && hidden) {
+        s->len=strlen(hidden);
+        s->data = ngx_pnalloc(pool, s->len);
+        ngx_memcpy(s->data,hidden,s->len);
+    } else {
+        s->len = ngx_strlen("NONE");
+        s->data = ngx_pnalloc(pool, s->len);
+        ngx_memcpy(s->data,"NONE",s->len);
+    }
+    return NGX_OK;
+}
+
+ngx_int_t
+ngx_ssl_get_esni_cover(ngx_connection_t *c, ngx_pool_t *pool, ngx_str_t *s)
+{
+    char *hidden;
+    char *cover;
+    int esnirv=SSL_get_esni_status(c->ssl->connection,&hidden,&cover);
+    if (esnirv==SSL_ESNI_STATUS_SUCCESS && cover) {
+        s->len=strlen(cover);
+        s->data = ngx_pnalloc(pool, s->len);
+        ngx_memcpy(s->data,cover,s->len);
+    } else {
+        s->len = ngx_strlen("NONE");
+        s->data = ngx_pnalloc(pool, s->len);
+        ngx_memcpy(s->data,"NONE",s->len);
+    }
+
+    return NGX_OK;
+}
+
+#endif
+
 
 ngx_int_t
 ngx_ssl_get_ciphers(ngx_connection_t *c, ngx_pool_t *pool, ngx_str_t *s)

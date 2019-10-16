@@ -272,6 +272,14 @@ ngx_int_t ngx_ssl_get_ciphers(ngx_connection_t *c, ngx_pool_t *pool,
     ngx_str_t *s);
 ngx_int_t ngx_ssl_get_curve(ngx_connection_t *c, ngx_pool_t *pool,
     ngx_str_t *s);
+#ifndef OPENSSL_NO_ESNI
+ngx_int_t ngx_ssl_get_esni_status(ngx_connection_t *c, ngx_pool_t *pool,
+    ngx_str_t *s);
+ngx_int_t ngx_ssl_get_esni_hidden(ngx_connection_t *c, ngx_pool_t *pool,
+    ngx_str_t *s);
+ngx_int_t ngx_ssl_get_esni_cover(ngx_connection_t *c, ngx_pool_t *pool,
+    ngx_str_t *s);
+#endif
 ngx_int_t ngx_ssl_get_curves(ngx_connection_t *c, ngx_pool_t *pool,
     ngx_str_t *s);
 ngx_int_t ngx_ssl_get_session_id(ngx_connection_t *c, ngx_pool_t *pool,
