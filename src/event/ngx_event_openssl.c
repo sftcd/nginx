@@ -4414,19 +4414,19 @@ ngx_ssl_get_esni_status(ngx_connection_t *c, ngx_pool_t *pool, ngx_str_t *s)
     int esnirv=SSL_get_esni_status(c->ssl->connection,&hidden,&cover);
     switch (esnirv) {
     case SSL_ESNI_STATUS_NOT_TRIED:
-        snprintf(buf,PATH_MAX,"ESNI not attempted");
+        snprintf(buf,PATH_MAX,"not attempted");
         break;
     case SSL_ESNI_STATUS_FAILED:
-        snprintf(buf, PATH_MAX, "ESNI tried but failed");
+        snprintf(buf, PATH_MAX, "tried but failed");
         break;
     case SSL_ESNI_STATUS_BAD_NAME:
-        snprintf(buf, PATH_MAX,"ESNI worked but bad name");
+        snprintf(buf, PATH_MAX,"worked but bad name");
         break;
     case SSL_ESNI_STATUS_SUCCESS:
-        snprintf(buf, PATH_MAX, "ESNI success");
+        snprintf(buf, PATH_MAX, "success");
         break;
     default:
-        snprintf(buf, PATH_MAX, "Error getting ESNI status");
+        snprintf(buf, PATH_MAX, "error getting ESNI status");
         break;
     }
     s->len = ngx_strlen(buf);
