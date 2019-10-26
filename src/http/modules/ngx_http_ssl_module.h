@@ -13,7 +13,6 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 
-
 typedef struct {
     ngx_flag_t                      enable;
 
@@ -42,6 +41,7 @@ typedef struct {
     ngx_str_t                       dhparam;
 #ifndef OPENSSL_NO_ESNI
     ngx_str_t                       esnikeydir;
+    ngx_array_t                    *esnikeyfiles;
 #endif
     ngx_str_t                       ecdh_curve;
     ngx_str_t                       client_certificate;

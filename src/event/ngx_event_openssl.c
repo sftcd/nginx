@@ -1359,8 +1359,7 @@ static int load_esnikeys(ngx_ssl_t *ssl, ngx_str_t *dirname)
      * you can find around https://github.com/sftcd/lighttpd1.4/blob/master/src/mod_openssl.c#L984
      *
      */
-#define PORTABLE
-#ifdef PORTABLE
+
     ngx_dir_t thedir;
     ngx_int_t nrv=ngx_open_dir(dirname,&thedir);
     if (nrv!=NGX_OK) {
@@ -1425,67 +1424,12 @@ static int load_esnikeys(ngx_ssl_t *ssl, ngx_str_t *dirname)
     }
     ngx_close_dir(&thedir);
 
-#else
-    const char *esnidir=(const char*)dirname->data;
-    SSL_CTX *ctx=ssl->ctx;
-    size_t elen=strlen(esnidir);
-    if ((elen+7) >= PATH_MAX) {
-        ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
-            "load_esnikeys, error, name too long: %s",esnidir);
-        return NGX_ERROR;
-    }
-    DIR *dp;
-    struct dirent *ep;
-    dp=opendir(esnidir);
-    if (dp==NULL) {
-        ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
-            "load_esnikeys, can't read directory: %s", esnidir);
-        return NGX_ERROR;
-    }
-    int somekeyworked=0;
-    while ((ep=readdir(dp))!=NULL) {
-        char privname[PATH_MAX];
-        char pubname[PATH_MAX];
-        /*
-         * If the file name matches *.priv, then check for matching *.pub and try enable that pair
-         */
-        size_t nlen=strlen(ep->d_name);
-        if (nlen>5) {
-            char *last5=ep->d_name+nlen-5;
-            if (strncmp(last5,".priv",5)) {
-                continue;
-            }
-            if ((elen+nlen+1+1)>=PATH_MAX) { /* +1 for '/' and of NULL terminator */
-                closedir(dp);
-                ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
-                    "load_esnikeys, file name too long: %s", esnidir);
-                return NGX_ERROR;
-            }
-            snprintf(privname,PATH_MAX,"%s/%s",esnidir,ep->d_name);
-            snprintf(pubname,PATH_MAX,"%s/%s",esnidir,ep->d_name);
-            pubname[elen+1+nlen-3]='u';
-            pubname[elen+1+nlen-2]='b';
-            pubname[elen+1+nlen-1]=0x00;
-            struct stat thestat;
-            if (stat(pubname,&thestat)==0 && stat(privname,&thestat)==0) {
-                if (SSL_CTX_esni_server_enable(ctx,privname,pubname)!=1) {
-                    ngx_ssl_error(NGX_LOG_ALERT, ssl->log, 0, 
-                        "load_esnikeys, failed for: %s",pubname);
-                } else {
-                    ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0, 
-                        "load_esnikeys, worked for: %s",pubname);
-                    somekeyworked=1;
-                }
-            }
-        }
-    }
-    closedir(dp);
-#endif
     if (somekeyworked==0) {
         ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
             "load_esnikeys failed for all keys but ESNI configured");
         return NGX_ERROR;
     }
+
     int numkeys=0;
     int rv=SSL_CTX_esni_server_key_status(ssl->ctx,&numkeys);
     if (rv!=1) {
@@ -1495,6 +1439,7 @@ static int load_esnikeys(ngx_ssl_t *ssl, ngx_str_t *dirname)
     }
     ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0, 
             "load_esnikeys, total keys loaded: %d",numkeys);
+
     return NGX_OK;
 }
 
@@ -1520,6 +1465,65 @@ ngx_ssl_esnikeydir(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *dir)
     }
     return NGX_OK;
 }
+
+
+/*
+ * We expect one path for each setting
+ */
+ngx_int_t
+ngx_ssl_esnikeyfiles(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_array_t *paths)
+{
+    ngx_str_t *filename=NULL;
+    ngx_uint_t i=0;
+    int keysworked=0;
+    int keystried=0;
+
+    if (paths == NULL) {
+        return NGX_OK;
+    }
+
+    filename=paths->elts;
+
+    for (i = 0; i!= paths->nelts; i++) {
+        if (ngx_conf_full_name(cf->cycle, &filename[i], 1) != NGX_OK) {
+            return NGX_ERROR;
+        }
+        const char *fname=(const char*)filename[i].data;
+        if (SSL_CTX_esni_server_enable(ssl->ctx,fname,NULL)!=1) {
+            ngx_ssl_error(NGX_LOG_ALERT, ssl->log, 0,
+                "ngx_ssl_esnikeyfiles, failed for: %s",fname);
+        } else {
+            ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0,
+                "ngx_ssl_esnikeyfiles, worked for: %s",fname);
+            keysworked++;
+        }
+        keystried++;
+    }
+
+    int numkeys=0;
+    int rv=SSL_CTX_esni_server_key_status(ssl->ctx,&numkeys);
+    if (rv!=1) {
+        ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
+            "load_esnikeys SSL_CTX_esni_server_key_status failed: %d",rv);
+        return NGX_ERROR;
+    }
+    ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0, 
+            "load_esnikeys, total keys loaded: %d",numkeys);
+
+    if (keysworked>0) { 
+        ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0,
+            "ngx_ssl_esnikeyfiles, %d of %d ESNI key loads worked",
+            keysworked,keystried);
+        return NGX_OK;
+    } else {
+        ngx_ssl_error(NGX_LOG_ALERT, ssl->log, 0,
+            "ngx_ssl_esnikeyfiles, %d of %d ESNI key loads worked",
+            keysworked,keystried);
+        return NGX_ERROR;
+    }
+
+}
+
 #endif
 
 ngx_int_t
