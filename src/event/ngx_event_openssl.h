@@ -242,6 +242,7 @@ ngx_int_t ngx_ssl_create_connection(ngx_ssl_t *ssl, ngx_connection_t *c,
     ngx_uint_t flags);
 #ifndef OPENSSL_NO_ESNI
 ngx_int_t ngx_ssl_esnikeydir(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *dir);
+ngx_int_t ngx_ssl_esnikeyfiles(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_array_t *files);
 #endif
 
 void ngx_ssl_remove_cached_session(SSL_CTX *ssl, ngx_ssl_session_t *sess);
