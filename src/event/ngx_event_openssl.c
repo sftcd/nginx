@@ -889,6 +889,16 @@ ngx_ssl_client_certificate(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *cert,
         return NGX_ERROR;
     }
 
+#ifndef OPENSSL_NO_ESNI
+    if (SSL_CTX_load_verify_file(ssl->ctx, (char *) cert->data)
+        == 0)
+    {
+        ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0,
+                      "SSL_CTX_load_verify_file(\"%s\") failed",
+                      cert->data);
+        return NGX_ERROR;
+    }
+#else
     if (SSL_CTX_load_verify_locations(ssl->ctx, (char *) cert->data, NULL)
         == 0)
     {
@@ -897,6 +907,7 @@ ngx_ssl_client_certificate(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *cert,
                       cert->data);
         return NGX_ERROR;
     }
+#endif
 
     /*
      * SSL_CTX_load_verify_locations() may leave errors in the error queue
@@ -936,6 +947,16 @@ ngx_ssl_trusted_certificate(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *cert,
         return NGX_ERROR;
     }
 
+#ifndef OPENSSL_NO_ESNI
+    if (SSL_CTX_load_verify_file(ssl->ctx, (char *) cert->data)
+        == 0)
+    {
+        ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0,
+                      "SSL_CTX_load_verify_file(\"%s\") failed",
+                      cert->data);
+        return NGX_ERROR;
+    }
+#else
     if (SSL_CTX_load_verify_locations(ssl->ctx, (char *) cert->data, NULL)
         == 0)
     {
@@ -944,6 +965,7 @@ ngx_ssl_trusted_certificate(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *cert,
                       cert->data);
         return NGX_ERROR;
     }
+#endif
 
     /*
      * SSL_CTX_load_verify_locations() may leave errors in the error queue
@@ -3844,7 +3866,11 @@ ngx_ssl_error(ngx_uint_t level, ngx_log_t *log, ngx_err_t err, char *fmt, ...)
 
         for ( ;; ) {
 
-            n = ERR_peek_error_data(&data, &flags);
+#ifndef OPENSSL_NO_ESNI
+            n = ERR_peek_last_error_data(&data, &flags);
+#else
+            n = ERR_peek_error_line_data(NULL, NULL, &data, &flags);
+#endif
 
             if (n == 0) {
                 break;
