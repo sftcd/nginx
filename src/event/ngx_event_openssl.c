@@ -1526,7 +1526,7 @@ static int load_esnikeys(ngx_ssl_t *ssl, ngx_str_t *dirname)
             }
             struct stat thestat;
             if (stat(pubname,&thestat)==0 && stat(privname,&thestat)==0) {
-                if (SSL_CTX_esni_server_enable(ssl->ctx,privname,pubname)!=1) {
+                if (SSL_CTX_esni_server_enable(ssl->ctx,NULL,privname,pubname)!=1) {
                     ngx_ssl_error(NGX_LOG_ALERT, ssl->log, 0,
                         "load_esnikeys, failed for: %s",pubname);
                 } else {
@@ -1604,7 +1604,7 @@ ngx_ssl_esnikeyfiles(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_array_t *paths)
             return NGX_ERROR;
         }
         const char *fname=(const char*)filename[i].data;
-        if (SSL_CTX_esni_server_enable(ssl->ctx,fname,NULL)!=1) {
+        if (SSL_CTX_esni_server_enable(ssl->ctx,NULL,fname,NULL)!=1) {
             ngx_ssl_error(NGX_LOG_ALERT, ssl->log, 0,
                 "ngx_ssl_esnikeyfiles, failed for: %s",fname);
         } else {
