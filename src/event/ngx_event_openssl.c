@@ -9,11 +9,11 @@
 #include <ngx_core.h>
 #include <ngx_event.h>
 
-#ifndef OPENSSL_NO_ESNI
+#ifndef OPENSSL_NO_ECH
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
-#include <openssl/esni.h>
+#include <openssl/ech.h>
 #endif
 
 
@@ -889,7 +889,7 @@ ngx_ssl_client_certificate(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *cert,
         return NGX_ERROR;
     }
 
-#ifndef OPENSSL_NO_ESNI
+#ifndef OPENSSL_NO_ECH
     if (SSL_CTX_load_verify_file(ssl->ctx, (char *) cert->data)
         == 0)
     {
@@ -947,7 +947,7 @@ ngx_ssl_trusted_certificate(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *cert,
         return NGX_ERROR;
     }
 
-#ifndef OPENSSL_NO_ESNI
+#ifndef OPENSSL_NO_ECH
     if (SSL_CTX_load_verify_file(ssl->ctx, (char *) cert->data)
         == 0)
     {
@@ -1160,29 +1160,29 @@ ngx_ssl_info_callback(const ngx_ssl_conn_t *ssl_conn, int where, int ret)
     }
 #endif
 
-#ifndef OPENSSL_NO_ESNI
+#ifndef OPENSSL_NO_ECH
     if ((where & SSL_CB_HANDSHAKE_DONE) == SSL_CB_HANDSHAKE_DONE) {
         c = ngx_ssl_get_connection((ngx_ssl_conn_t *) ssl_conn);
 
-        char *hidden=NULL;
-        char *cover=NULL;
-        int esnirv=SSL_get_esni_status(c->ssl->connection,&hidden,&cover);
-        switch (esnirv) {
-        case SSL_ESNI_STATUS_NOT_TRIED:
-            ngx_ssl_error(NGX_LOG_INFO, c->log, 0, "ESNI not attempted");
+        char *inner_sni=NULL;
+        char *outer_sni=NULL;
+        int echrv=SSL_ech_get_status(c->ssl->connection,&inner_sni,&outer_sni);
+        switch (echrv) {
+        case SSL_ECH_STATUS_NOT_TRIED:
+            ngx_ssl_error(NGX_LOG_INFO, c->log, 0, "ECH not attempted");
             break;
-        case SSL_ESNI_STATUS_FAILED:
-            ngx_ssl_error(NGX_LOG_ERR, c->log, 0, "ESNI tried but failed");
+        case SSL_ECH_STATUS_FAILED:
+            ngx_ssl_error(NGX_LOG_ERR, c->log, 0, "ECH tried but failed");
             break;
-        case SSL_ESNI_STATUS_BAD_NAME:
-            ngx_ssl_error(NGX_LOG_ERR, c->log, 0, "ESNI worked but bad name");
+        case SSL_ECH_STATUS_BAD_NAME:
+            ngx_ssl_error(NGX_LOG_ERR, c->log, 0, "ECH worked but bad name");
             break;
-        case SSL_ESNI_STATUS_SUCCESS:
+        case SSL_ECH_STATUS_SUCCESS:
             ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
-                    "ESNI success cover: %s hidden: %s",(cover?cover:"NONE"),(hidden?hidden:"NONE"));
+                    "ECH success outer_sni: %s inner_sni: %s",(outer_sni?outer_sni:"NONE"),(inner_sni?inner_sni:"NONE"));
             break;
         default:
-            ngx_ssl_error(NGX_LOG_ERR, c->log, 0, "Error getting ESNI status");
+            ngx_ssl_error(NGX_LOG_ERR, c->log, 0, "Error getting ECH status");
             break;
         }
     }
@@ -1423,17 +1423,16 @@ ngx_ssl_passwords_cleanup(void *data)
     }
 }
 
-#ifndef OPENSSL_NO_ESNI
+#ifndef OPENSSL_NO_ECH
 
 /* 
- * load any key files we find in the ssl_esnikeydir directory 
- * where there are matching <name>.pub and <name>.priv files
- * that match 
+ * load any key files called <name>.ech we find in the ssl_echkeydir 
+ * directory 
  */
-static int load_esnikeys(ngx_ssl_t *ssl, ngx_str_t *dirname)
+static int load_echkeys(ngx_ssl_t *ssl, ngx_str_t *dirname)
 {
     /*
-     * Try load any good looking public/private ESNI values found in files in that directory
+     * Try load any good looking public/private ECH values found in files in that directory
      *
      * This code is derived from what I added to openssl s_server, (and then lighttpd) which 
      * you can find around https://github.com/sftcd/lighttpd1.4/blob/master/src/mod_openssl.c#L984
@@ -1444,11 +1443,10 @@ static int load_esnikeys(ngx_ssl_t *ssl, ngx_str_t *dirname)
     ngx_int_t nrv=ngx_open_dir(dirname,&thedir);
     if (nrv!=NGX_OK) {
         ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0,
-            "load_esnikeys, error opening %s at %d",dirname->data,__LINE__);
+            "load_echkeys, error opening %s at %d",dirname->data,__LINE__);
         return NGX_ERROR;
     }
     char privname[PATH_MAX];
-    char pubname[PATH_MAX];
     int somekeyworked=0;
     /*
      * I really can't see a reason to want >1024 private key files
@@ -1466,37 +1464,33 @@ static int load_esnikeys(ngx_ssl_t *ssl, ngx_str_t *dirname)
         }
         char *den=(char*)ngx_de_name(&thedir);
         size_t nlen=strlen(den);
-        if (nlen>5) {
-            char *last5=den+nlen-5;
-            if (strncmp(last5,".priv",5)) {
+        if (nlen>4) {
+            char *last4=den+nlen-4;
+            if (strncmp(last4,".ech",4)) {
                 continue;
             }
             if ((elen+1+nlen+1)>=PATH_MAX) {
                 ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0,
-                    "load_esnikeys, error, name too long: %s with %s",dirname->data,den);
+                    "load_echkeys, error, name too long: %s with %s",dirname->data,den);
                 continue;
             }
             snprintf(privname,PATH_MAX,"%s/%s",dirname->data,den);
-            snprintf(pubname,PATH_MAX,"%s/%s",dirname->data,den);
-            pubname[elen+1+nlen-3]='u';
-            pubname[elen+1+nlen-2]='b';
-            pubname[elen+1+nlen-1]=0x00;
             if (!--maxkeyfiles) {
                 // just so we don't loop forever, ever
                 ngx_ssl_error(NGX_LOG_ALERT, ssl->log, 0,
-                    "load_esnikeys, too many private key files to check!");
+                    "load_echkeys, too many private key files to check!");
                 ngx_ssl_error(NGX_LOG_ALERT, ssl->log, 0,
-                    "load_esnikeys, maxkeyfiles is hardcoded to 1024, fix if you like!");
+                    "load_echkeys, maxkeyfiles is hardcoded to 1024, fix if you like!");
                  return NGX_ERROR;
             }
             struct stat thestat;
-            if (stat(pubname,&thestat)==0 && stat(privname,&thestat)==0) {
-                if (SSL_CTX_esni_server_enable(ssl->ctx,NULL,privname,pubname)!=1) {
+            if (stat(privname,&thestat)==0) {
+                if (SSL_CTX_ech_server_enable(ssl->ctx,privname)!=1) {
                     ngx_ssl_error(NGX_LOG_ALERT, ssl->log, 0,
-                        "load_esnikeys, failed for: %s",pubname);
+                        "load_echkeys, failed for: %s",privname);
                 } else {
                     ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0,
-                        "load_esnikeys, worked for: %s",pubname);
+                        "load_echkeys, worked for: %s",privname);
                     somekeyworked=1;
                 }
             }
@@ -1506,25 +1500,25 @@ static int load_esnikeys(ngx_ssl_t *ssl, ngx_str_t *dirname)
 
     if (somekeyworked==0) {
         ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
-            "load_esnikeys failed for all keys but ESNI configured");
+            "load_echkeys failed for all keys but ECH configured");
         return NGX_ERROR;
     }
 
     int numkeys=0;
-    int rv=SSL_CTX_esni_server_key_status(ssl->ctx,&numkeys);
+    int rv=SSL_CTX_ech_server_key_status(ssl->ctx,&numkeys);
     if (rv!=1) {
         ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
-            "load_esnikeys SSL_CTX_esni_server_key_status failed: %d",rv);
+            "load_echkeys SSL_CTX_ech_server_key_status failed: %d",rv);
         return NGX_ERROR;
     }
     ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0, 
-            "load_esnikeys, total keys loaded: %d",numkeys);
+            "load_echkeys, total keys loaded: %d",numkeys);
 
     return NGX_OK;
 }
 
 ngx_int_t
-ngx_ssl_esnikeydir(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *dir)
+ngx_ssl_echkeydir(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *dir)
 {
     if (!dir) {
         return NGX_OK;
@@ -1534,75 +1528,72 @@ ngx_ssl_esnikeydir(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *dir)
     }
     if (ngx_conf_full_name(cf->cycle, dir, 1) != NGX_OK) {
         ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
-                "Hey some bad esni stuff happened at %d",__LINE__);
+                "Hey some bad ech stuff happened at %d",__LINE__);
         return NGX_ERROR;
     }
-    int rv=load_esnikeys(ssl,dir);
+    int rv=load_echkeys(ssl,dir);
     if (rv!=NGX_OK) {
         ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
-                "Hey some bad esni stuff happened at %d",__LINE__);
+                "Hey some bad ech stuff happened at %d",__LINE__);
         return rv;
     }
     return NGX_OK;
 }
 
 
+#if 0
+// keep this code for a bit just in case
 /*
  * We expect one path for each setting
  */
 ngx_int_t
-ngx_ssl_esnikeyfiles(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_array_t *paths)
+ngx_ssl_echkeyfiles(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_array_t *paths)
 {
     ngx_str_t *filename=NULL;
     ngx_uint_t i=0;
     int keysworked=0;
     int keystried=0;
-
     if (paths == NULL) {
         return NGX_OK;
     }
-
     filename=paths->elts;
-
     for (i = 0; i!= paths->nelts; i++) {
         if (ngx_conf_full_name(cf->cycle, &filename[i], 1) != NGX_OK) {
             return NGX_ERROR;
         }
         const char *fname=(const char*)filename[i].data;
-        if (SSL_CTX_esni_server_enable(ssl->ctx,NULL,fname,NULL)!=1) {
+        if (SSL_CTX_ech_server_enable(ssl->ctx,NULL,fname,NULL)!=1) {
             ngx_ssl_error(NGX_LOG_ALERT, ssl->log, 0,
-                "ngx_ssl_esnikeyfiles, failed for: %s",fname);
+                "ngx_ssl_echkeyfiles, failed for: %s",fname);
         } else {
             ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0,
-                "ngx_ssl_esnikeyfiles, worked for: %s",fname);
+                "ngx_ssl_echkeyfiles, worked for: %s",fname);
             keysworked++;
         }
         keystried++;
     }
-
     int numkeys=0;
-    int rv=SSL_CTX_esni_server_key_status(ssl->ctx,&numkeys);
+    int rv=SSL_CTX_ech_server_key_status(ssl->ctx,&numkeys);
     if (rv!=1) {
         ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
-            "load_esnikeys SSL_CTX_esni_server_key_status failed: %d",rv);
+            "load_echkeys SSL_CTX_ech_server_key_status failed: %d",rv);
         return NGX_ERROR;
     }
     ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0, 
-            "load_esnikeys, total keys loaded: %d",numkeys);
-
+            "load_echkeys, total keys loaded: %d",numkeys);
     if (keysworked>0) { 
         ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0,
-            "ngx_ssl_esnikeyfiles, %d of %d ESNI key loads worked",
+            "ngx_ssl_echkeyfiles, %d of %d ECH key loads worked",
             keysworked,keystried);
         return NGX_OK;
     } else {
         ngx_ssl_error(NGX_LOG_ALERT, ssl->log, 0,
-            "ngx_ssl_esnikeyfiles, %d of %d ESNI key loads worked",
+            "ngx_ssl_echkeyfiles, %d of %d ECH key loads worked",
             keysworked,keystried);
         return NGX_ERROR;
     }
-
 }
+#endif
 
 #endif
 
@@ -3866,7 +3857,7 @@ ngx_ssl_error(ngx_uint_t level, ngx_log_t *log, ngx_err_t err, char *fmt, ...)
 
         for ( ;; ) {
 
-#ifndef OPENSSL_NO_ESNI
+#ifndef OPENSSL_NO_ECH
             n = ERR_peek_last_error_data(&data, &flags);
 #else
             n = ERR_peek_error_line_data(NULL, NULL, &data, &flags);
@@ -5248,29 +5239,29 @@ ngx_ssl_get_cipher_name(ngx_connection_t *c, ngx_pool_t *pool, ngx_str_t *s)
     return NGX_OK;
 }
 
-#ifndef OPENSSL_NO_ESNI
+#ifndef OPENSSL_NO_ECH
 ngx_int_t
-ngx_ssl_get_esni_status(ngx_connection_t *c, ngx_pool_t *pool, ngx_str_t *s)
+ngx_ssl_get_ech_status(ngx_connection_t *c, ngx_pool_t *pool, ngx_str_t *s)
 {
-    char *hidden;
-    char *cover;
+    char *inner_sni;
+    char *outer_sni;
     char buf[PATH_MAX];
-    int esnirv=SSL_get_esni_status(c->ssl->connection,&hidden,&cover);
-    switch (esnirv) {
-    case SSL_ESNI_STATUS_NOT_TRIED:
+    int echrv=SSL_ech_get_status(c->ssl->connection,&inner_sni,&outer_sni);
+    switch (echrv) {
+    case SSL_ECH_STATUS_NOT_TRIED:
         snprintf(buf,PATH_MAX,"not attempted");
         break;
-    case SSL_ESNI_STATUS_FAILED:
+    case SSL_ECH_STATUS_FAILED:
         snprintf(buf, PATH_MAX, "tried but failed");
         break;
-    case SSL_ESNI_STATUS_BAD_NAME:
+    case SSL_ECH_STATUS_BAD_NAME:
         snprintf(buf, PATH_MAX,"worked but bad name");
         break;
-    case SSL_ESNI_STATUS_SUCCESS:
+    case SSL_ECH_STATUS_SUCCESS:
         snprintf(buf, PATH_MAX, "success");
         break;
     default:
-        snprintf(buf, PATH_MAX, "error getting ESNI status");
+        snprintf(buf, PATH_MAX, "error getting ECH status");
         break;
     }
     s->len = ngx_strlen(buf);
@@ -5280,15 +5271,15 @@ ngx_ssl_get_esni_status(ngx_connection_t *c, ngx_pool_t *pool, ngx_str_t *s)
 }
 
 ngx_int_t
-ngx_ssl_get_esni_hidden(ngx_connection_t *c, ngx_pool_t *pool, ngx_str_t *s)
+ngx_ssl_get_ech_inner_sni(ngx_connection_t *c, ngx_pool_t *pool, ngx_str_t *s)
 {
-    char *hidden;
-    char *cover;
-    int esnirv=SSL_get_esni_status(c->ssl->connection,&hidden,&cover);
-    if (esnirv==SSL_ESNI_STATUS_SUCCESS && hidden) {
-        s->len=strlen(hidden);
+    char *inner_sni;
+    char *outer_sni;
+    int echrv=SSL_ech_get_status(c->ssl->connection,&inner_sni,&outer_sni);
+    if (echrv==SSL_ECH_STATUS_SUCCESS && inner_sni) {
+        s->len=strlen(inner_sni);
         s->data = ngx_pnalloc(pool, s->len);
-        ngx_memcpy(s->data,hidden,s->len);
+        ngx_memcpy(s->data,inner_sni,s->len);
     } else {
         s->len = ngx_strlen("NONE");
         s->data = ngx_pnalloc(pool, s->len);
@@ -5298,15 +5289,15 @@ ngx_ssl_get_esni_hidden(ngx_connection_t *c, ngx_pool_t *pool, ngx_str_t *s)
 }
 
 ngx_int_t
-ngx_ssl_get_esni_cover(ngx_connection_t *c, ngx_pool_t *pool, ngx_str_t *s)
+ngx_ssl_get_ech_outer_sni(ngx_connection_t *c, ngx_pool_t *pool, ngx_str_t *s)
 {
-    char *hidden;
-    char *cover;
-    int esnirv=SSL_get_esni_status(c->ssl->connection,&hidden,&cover);
-    if (esnirv==SSL_ESNI_STATUS_SUCCESS && cover) {
-        s->len=strlen(cover);
+    char *inner_sni;
+    char *outer_sni;
+    int echrv=SSL_ech_get_status(c->ssl->connection,&inner_sni,&outer_sni);
+    if (echrv==SSL_ECH_STATUS_SUCCESS && outer_sni) {
+        s->len=strlen(outer_sni);
         s->data = ngx_pnalloc(pool, s->len);
-        ngx_memcpy(s->data,cover,s->len);
+        ngx_memcpy(s->data,outer_sni,s->len);
     } else {
         s->len = ngx_strlen("NONE");
         s->data = ngx_pnalloc(pool, s->len);
