@@ -1485,12 +1485,12 @@ static int load_echkeys(ngx_ssl_t *ssl, ngx_str_t *dirname)
             }
             struct stat thestat;
             if (stat(privname,&thestat)==0) {
-                if (SSL_CTX_ech_server_enable(ssl->ctx,privname)!=1) {
+                if (SSL_CTX_ech_server_enable_file(ssl->ctx,privname)!=1) {
                     ngx_ssl_error(NGX_LOG_ALERT, ssl->log, 0,
                         "load_echkeys, failed for: %s",privname);
                 } else {
                     ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0,
-                        "load_echkeys, worked for: %s",privname);
+                        "load_echkeys, worked for: %s", privname);
                     somekeyworked=1;
                 }
             }
@@ -1505,7 +1505,7 @@ static int load_echkeys(ngx_ssl_t *ssl, ngx_str_t *dirname)
     }
 
     int numkeys=0;
-    int rv=SSL_CTX_ech_server_key_status(ssl->ctx,&numkeys);
+    int rv=SSL_CTX_ech_server_get_key_status(ssl->ctx,&numkeys);
     if (rv!=1) {
         ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
             "load_echkeys SSL_CTX_ech_server_key_status failed: %d",rv);
