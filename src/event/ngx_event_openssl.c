@@ -1199,9 +1199,10 @@ ngx_ssl_info_callback(const ngx_ssl_conn_t *ssl_conn, int where, int ret)
     if ((where & SSL_CB_HANDSHAKE_DONE) == SSL_CB_HANDSHAKE_DONE) {
         c = ngx_ssl_get_connection((ngx_ssl_conn_t *) ssl_conn);
 
-        char *inner_sni=NULL;
-        char *outer_sni=NULL;
-        int echrv=SSL_ech_get_status(c->ssl->connection,&inner_sni,&outer_sni);
+        char *inner_sni = NULL;
+        char *outer_sni = NULL;
+        int echrv = SSL_ech_get_status(c->ssl->connection, &inner_sni,
+                                       &outer_sni);
         switch (echrv) {
         case SSL_ECH_STATUS_NOT_TRIED:
             ngx_ssl_error(NGX_LOG_INFO, c->log, 0, "ECH not attempted");
@@ -1214,7 +1215,8 @@ ngx_ssl_info_callback(const ngx_ssl_conn_t *ssl_conn, int where, int ret)
             break;
         case SSL_ECH_STATUS_SUCCESS:
             ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
-                    "ECH success outer_sni: %s inner_sni: %s",(outer_sni?outer_sni:"NONE"),(inner_sni?inner_sni:"NONE"));
+                    "ECH success outer_sni: %s inner_sni: %s",
+                    (outer_sni?outer_sni:"NONE"),(inner_sni?inner_sni:"NONE"));
             break;
         default:
             ngx_ssl_error(NGX_LOG_ERR, c->log, 0, "Error getting ECH status");
@@ -1473,16 +1475,10 @@ static int load_echkeys(ngx_ssl_t *ssl, ngx_str_t *dirname)
      * you can find around https://github.com/sftcd/lighttpd1.4/blob/master/src/mod_openssl.c#L984
      *
      */
-
     ngx_dir_t thedir;
-    ngx_int_t nrv=ngx_open_dir(dirname,&thedir);
-    if (nrv!=NGX_OK) {
-        ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0,
-            "load_echkeys, error opening %s at %d",dirname->data,__LINE__);
-        return NGX_ERROR;
-    }
+    ngx_int_t nrv = ngx_open_dir(dirname, &thedir);
     char privname[PATH_MAX];
-    int somekeyworked=0;
+    int somekeyworked = 0;
     /*
      * I really can't see a reason to want >1024 private key files
      * to have to be checked in a directory, but if there were a
@@ -1491,25 +1487,35 @@ static int load_echkeys(ngx_ssl_t *ssl, ngx_str_t *dirname)
      */
     int maxkeyfiles=1024;
     size_t elen=dirname->len;
+    char *den = NULL, *last4 = NULL;
+    size_t nlen = 0;
+    struct stat thestat;
+    int numkeys = 0;
 
+    if (nrv != NGX_OK) {
+        ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0,
+            "load_echkeys, error opening %s at %d", dirname->data, __LINE__);
+        return NGX_ERROR;
+    }
     for (;;) {
         nrv=ngx_read_dir(&thedir);
         if (nrv!=NGX_OK) {
             break;
         }
-        char *den=(char*)ngx_de_name(&thedir);
-        size_t nlen=strlen(den);
-        if (nlen>4) {
-            char *last4=den+nlen-4;
-            if (strncmp(last4,".ech",4)) {
+        den = (char *)ngx_de_name(&thedir);
+        nlen = strlen(den);
+        if (nlen > 4) {
+            last4 = den + nlen - 4;
+            if (strncmp(last4, ".ech", 4)) {
                 continue;
             }
-            if ((elen+1+nlen+1)>=PATH_MAX) {
+            if ((elen + 1 + nlen + 1) >= PATH_MAX) {
                 ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0,
-                    "load_echkeys, error, name too long: %s with %s",dirname->data,den);
+                    "load_echkeys, error, name too long: %s with %s",
+                    dirname->data, den);
                 continue;
             }
-            snprintf(privname,PATH_MAX,"%s/%s",dirname->data,den);
+            snprintf(privname, PATH_MAX,"%s/%s", dirname->data, den);
             if (!--maxkeyfiles) {
                 // just so we don't loop forever, ever
                 ngx_ssl_error(NGX_LOG_ALERT, ssl->log, 0,
@@ -1518,36 +1524,34 @@ static int load_echkeys(ngx_ssl_t *ssl, ngx_str_t *dirname)
                     "load_echkeys, maxkeyfiles is hardcoded to 1024, fix if you like!");
                  return NGX_ERROR;
             }
-            struct stat thestat;
-            if (stat(privname,&thestat)==0) {
-                if (SSL_CTX_ech_server_enable_file(ssl->ctx,privname)!=1) {
+            if (stat(privname, &thestat) == 0) {
+                    if (SSL_CTX_ech_server_enable_file(ssl->ctx, privname,
+                        SSL_ECH_USE_FOR_RETRY) != 1) {
                     ngx_ssl_error(NGX_LOG_ALERT, ssl->log, 0,
                         "load_echkeys, failed for: %s",privname);
                 } else {
                     ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0,
                         "load_echkeys, worked for: %s", privname);
-                    somekeyworked=1;
+                    somekeyworked = 1;
                 }
             }
         }
     }
     ngx_close_dir(&thedir);
 
-    if (somekeyworked==0) {
+    if (somekeyworked == 0) {
         ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
             "load_echkeys failed for all keys but ECH configured");
         return NGX_ERROR;
     }
 
-    int numkeys=0;
-    int rv=SSL_CTX_ech_server_get_key_status(ssl->ctx,&numkeys);
-    if (rv!=1) {
+    if (SSL_CTX_ech_server_get_key_status(ssl->ctx, &numkeys) != 1) {
         ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
-            "load_echkeys SSL_CTX_ech_server_key_status failed: %d",rv);
+            "load_echkeys SSL_CTX_ech_server_key_status failed");
         return NGX_ERROR;
     }
     ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0, 
-            "load_echkeys, total keys loaded: %d",numkeys);
+            "load_echkeys, total keys loaded: %d", numkeys);
 
     return NGX_OK;
 }
@@ -1555,6 +1559,8 @@ static int load_echkeys(ngx_ssl_t *ssl, ngx_str_t *dirname)
 ngx_int_t
 ngx_ssl_echkeydir(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *dir)
 {
+    int rv = 0;
+
     if (!dir) {
         return NGX_OK;
     }
@@ -1566,7 +1572,7 @@ ngx_ssl_echkeydir(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *dir)
                 "Hey some bad ech stuff happened at %d",__LINE__);
         return NGX_ERROR;
     }
-    int rv=load_echkeys(ssl,dir);
+    rv = load_echkeys(ssl, dir);
     if (rv!=NGX_OK) {
         ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
                 "Hey some bad ech stuff happened at %d",__LINE__);
@@ -1574,61 +1580,6 @@ ngx_ssl_echkeydir(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *dir)
     }
     return NGX_OK;
 }
-
-
-#if 0
-// keep this code for a bit just in case
-/*
- * We expect one path for each setting
- */
-ngx_int_t
-ngx_ssl_echkeyfiles(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_array_t *paths)
-{
-    ngx_str_t *filename=NULL;
-    ngx_uint_t i=0;
-    int keysworked=0;
-    int keystried=0;
-    if (paths == NULL) {
-        return NGX_OK;
-    }
-    filename=paths->elts;
-    for (i = 0; i!= paths->nelts; i++) {
-        if (ngx_conf_full_name(cf->cycle, &filename[i], 1) != NGX_OK) {
-            return NGX_ERROR;
-        }
-        const char *fname=(const char*)filename[i].data;
-        if (SSL_CTX_ech_server_enable(ssl->ctx,NULL,fname,NULL)!=1) {
-            ngx_ssl_error(NGX_LOG_ALERT, ssl->log, 0,
-                "ngx_ssl_echkeyfiles, failed for: %s",fname);
-        } else {
-            ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0,
-                "ngx_ssl_echkeyfiles, worked for: %s",fname);
-            keysworked++;
-        }
-        keystried++;
-    }
-    int numkeys=0;
-    int rv=SSL_CTX_ech_server_key_status(ssl->ctx,&numkeys);
-    if (rv!=1) {
-        ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
-            "load_echkeys SSL_CTX_ech_server_key_status failed: %d",rv);
-        return NGX_ERROR;
-    }
-    ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0, 
-            "load_echkeys, total keys loaded: %d",numkeys);
-    if (keysworked>0) { 
-        ngx_ssl_error(NGX_LOG_NOTICE, ssl->log, 0,
-            "ngx_ssl_echkeyfiles, %d of %d ECH key loads worked",
-            keysworked,keystried);
-        return NGX_OK;
-    } else {
-        ngx_ssl_error(NGX_LOG_ALERT, ssl->log, 0,
-            "ngx_ssl_echkeyfiles, %d of %d ECH key loads worked",
-            keysworked,keystried);
-        return NGX_ERROR;
-    }
-}
-#endif
 
 #endif
 
