@@ -39,6 +39,9 @@
 #include <openssl/rand.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
+#ifndef OPENSSL_NO_ECH
+#include <openssl/ech.h>
+#endif
 
 #define NGX_SSL_NAME     "OpenSSL"
 

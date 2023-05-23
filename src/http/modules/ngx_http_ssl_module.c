@@ -857,7 +857,6 @@ ngx_http_ssl_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
         return NGX_CONF_ERROR;
     }
 
-
 #ifndef OPENSSL_NO_ECH
     if (ngx_ssl_echkeydir(cf, &conf->ssl, &conf->echkeydir) != NGX_OK) {
         return NGX_CONF_ERROR;

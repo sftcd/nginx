@@ -11,6 +11,10 @@
 
 typedef struct {
     ngx_flag_t      enabled;
+#ifndef OPENSSL_NO_ECH
+    ngx_str_t       echkeydir;
+    ngx_ssl_t       *ssl;
+#endif
 } ngx_stream_ssl_preread_srv_conf_t;
 
 
@@ -54,6 +58,15 @@ static ngx_command_t  ngx_stream_ssl_preread_commands[] = {
       NGX_STREAM_SRV_CONF_OFFSET,
       offsetof(ngx_stream_ssl_preread_srv_conf_t, enabled),
       NULL },
+
+#ifndef OPENSSL_NO_ECH
+    { ngx_string("ssl_echkeydir"),
+      NGX_STREAM_MAIN_CONF|NGX_STREAM_SRV_CONF|NGX_CONF_TAKE1,
+      ngx_conf_set_str_slot,
+      NGX_STREAM_SRV_CONF_OFFSET,
+      offsetof(ngx_stream_ssl_preread_srv_conf_t, echkeydir),
+      NULL },
+#endif
 
       ngx_null_command
 };
@@ -142,10 +155,51 @@ ngx_stream_ssl_preread_handler(ngx_stream_session_t *s)
         ctx->pool = c->pool;
         ctx->log = c->log;
         ctx->pos = c->buffer->pos;
+
     }
 
     p = ctx->pos;
     last = c->buffer->last;
+
+#ifndef OPENSSL_NO_ECH
+    /* check if there's an ECH to handle in split mode */
+    if (sscf->ssl != NULL && sscf->ssl->ctx != NULL) {
+        int rv = 0, dec_ok = 0;
+        char *inner_sni = NULL, *outer_sni = NULL;
+        unsigned char *hrrtok = NULL, *chstart = NULL, *inp = NULL;
+        size_t toklen = 0, chlen = 0, innerlen = 0;
+
+        /*
+         * maybe add sanity checks here that we are dealing with
+         * a TLSv1.3 ClientHello
+         * Then there's early data if we have some - a TBD for now
+         */
+        chstart = p;
+        chlen = last - p;
+        inp = ngx_pcalloc(c->pool, chlen);
+        if (inp == NULL) {
+            return NGX_ERROR;
+        }
+        innerlen = chlen;
+        rv = SSL_CTX_ech_raw_decrypt(sscf->ssl->ctx, &dec_ok,
+                                     &inner_sni, &outer_sni,
+                                     chstart, chlen,
+                                     inp, &innerlen,
+                                     &hrrtok, &toklen);
+        if (rv != 1) {
+            return NGX_ERROR;
+        }
+        if (dec_ok == 1) {
+            /*
+             * swap 'em over
+             * FIXME: this is temp code, it'd fail with early data
+             */
+            memcpy(p, inp, innerlen);
+            last = p + innerlen;
+            c->buffer->last = last;
+        }
+    }
+#endif
 
     while (last - p >= 5) {
 
@@ -628,6 +682,10 @@ ngx_stream_ssl_preread_create_srv_conf(ngx_conf_t *cf)
     }
 
     conf->enabled = NGX_CONF_UNSET;
+#ifndef OPENSSL_NO_ECH
+    memset(&conf->echkeydir, 0, sizeof(conf->echkeydir));
+    conf->ssl = NULL;
+#endif
 
     return conf;
 }
@@ -640,6 +698,31 @@ ngx_stream_ssl_preread_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_stream_ssl_preread_srv_conf_t *conf = child;
 
     ngx_conf_merge_value(conf->enabled, prev->enabled, 0);
+#ifndef OPENSSL_NO_ECH
+    ngx_conf_merge_str_value(conf->echkeydir, prev->echkeydir, "");
+    if (ngx_strcmp(conf->echkeydir.data, "") != 0) {
+        const SSL_METHOD *meth = NULL;
+        SSL_CTX *sctx = NULL;
+
+        meth = TLS_server_method();
+        if (cf == NULL || cf->log == NULL || meth == NULL) {
+            return NULL;
+        }
+        sctx = SSL_CTX_new(meth);
+        if (sctx == NULL) {
+            return NULL;
+        }
+        conf->ssl = ngx_pcalloc(cf->pool, sizeof(ngx_ssl_t));
+        if (conf->ssl == NULL) {
+            return NULL;
+        }
+        conf->ssl->ctx = sctx;
+        conf->ssl->log = cf->log;
+        if (ngx_ssl_echkeydir(cf, conf->ssl, &conf->echkeydir) != NGX_OK) {
+            return NULL;
+        }
+    }
+#endif
 
     return NGX_CONF_OK;
 }

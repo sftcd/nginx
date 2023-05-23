@@ -1567,7 +1567,7 @@ ngx_ssl_echkeydir(ngx_conf_t *cf, ngx_ssl_t *ssl, ngx_str_t *dir)
     if (dir->len == 0) {
         return NGX_OK;
     }
-    if (ngx_conf_full_name(cf->cycle, dir, 1) != NGX_OK) {
+    if (cf != NULL && ngx_conf_full_name(cf->cycle, dir, 1) != NGX_OK) {
         ngx_ssl_error(NGX_LOG_EMERG, ssl->log, 0, 
                 "Hey some bad ech stuff happened at %d",__LINE__);
         return NGX_ERROR;
