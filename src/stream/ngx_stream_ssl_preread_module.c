@@ -167,36 +167,48 @@ ngx_stream_ssl_preread_handler(ngx_stream_session_t *s)
         int rv = 0, dec_ok = 0;
         char *inner_sni = NULL, *outer_sni = NULL;
         unsigned char *hrrtok = NULL, *chstart = NULL, *inp = NULL;
-        size_t toklen = 0, chlen = 0, innerlen = 0;
+        size_t toklen = 0, chlen = 0, msglen = 0, innerlen = 0;
 
         /*
-         * maybe add sanity checks here that we are dealing with
-         * a TLSv1.3 ClientHello
-         * Then there's early data if we have some - a TBD for now
+         * sanity checks that we are dealing with a TLSv1.3 ClientHello
+         * and to establish CH length (in case of early data)
          */
-        chstart = p;
-        chlen = last - p;
-        inp = ngx_pcalloc(c->pool, chlen);
-        if (inp == NULL) {
-            return NGX_ERROR;
-        }
-        innerlen = chlen;
-        rv = SSL_CTX_ech_raw_decrypt(sscf->ssl->ctx, &dec_ok,
-                                     &inner_sni, &outer_sni,
-                                     chstart, chlen,
-                                     inp, &innerlen,
-                                     &hrrtok, &toklen);
-        if (rv != 1) {
-            return NGX_ERROR;
-        }
-        if (dec_ok == 1) {
-            /*
-             * swap 'em over
-             * FIXME: this is temp code, it'd fail with early data
-             */
-            memcpy(p, inp, innerlen);
-            last = p + innerlen;
-            c->buffer->last = last;
+        if (p[0] == 22 /* handshake */
+            && p[1] == 3 /* tls 1.2 or 1.3 */
+            && (p[2] == 2 || p[2] == 1) /* both may be ok */
+            && p[5] == 1) { /* ClientHello */
+
+            chlen = 5 + (uint8_t)p[3] * 256 + (uint8_t)p[4];
+            msglen = last - p; /* in case of early data */
+            /* we'll at least try for ECH */
+            chstart = p;
+            inp = ngx_pcalloc(c->pool, chlen);
+            if (inp == NULL) {
+                return NGX_ERROR;
+            }
+            innerlen = chlen;
+            rv = SSL_CTX_ech_raw_decrypt(sscf->ssl->ctx, &dec_ok,
+                                        &inner_sni, &outer_sni,
+                                        chstart, chlen,
+                                        inp, &innerlen,
+                                        &hrrtok, &toklen);
+            if (rv != 1) {
+                return NGX_ERROR;
+            }
+            if (dec_ok == 1) {
+                ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
+                        "ssl_preread: ECH success outer_sni: %s inner_sni: %s",
+                        (outer_sni?outer_sni:"NONE"),(inner_sni?inner_sni:"NONE"));
+                /* swap 'em over, but add back extra data if any */
+                memcpy(p, inp, innerlen);
+                if (msglen > chlen) {
+                    memcpy(p + innerlen, p + chlen, msglen - chlen);
+                    last = p + innerlen + (msglen - chlen);
+                } else {
+                    last = p + innerlen;
+                }
+                c->buffer->last = last;
+            }
         }
     }
 #endif
