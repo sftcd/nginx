@@ -202,6 +202,8 @@ ngx_stream_ssl_preread_handler(ngx_stream_session_t *s)
                                         inp, &innerlen,
                                         &hrrtok, &toklen);
             if (rv != 1) {
+                ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
+                    "ssl_preread: ECH decrypt failed (%d)", rv);
                 return NGX_ERROR;
             }
             if (dec_ok == 1) {
@@ -217,6 +219,9 @@ ngx_stream_ssl_preread_handler(ngx_stream_session_t *s)
                     last = p + innerlen;
                 }
                 c->buffer->last = last;
+            } else {
+                ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
+                    "ssl_preread: ECH decrypt failed (%d)", rv);
             }
         } else {
             ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
