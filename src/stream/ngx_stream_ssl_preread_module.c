@@ -180,6 +180,15 @@ ngx_stream_ssl_preread_handler(ngx_stream_session_t *s)
 
             chlen = 5 + (uint8_t)p[3] * 256 + (uint8_t)p[4];
             msglen = last - p; /* in case of early data */
+            if (msglen != chlen) {
+                ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
+                        "ssl_preread: message (%z) longer than CH (%z)",
+                        msglen, chlen);
+            } else {
+                ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
+                        "ssl_preread: message only has CH (%z)",
+                        chlen);
+            }
             /* we'll at least try for ECH */
             chstart = p;
             inp = ngx_pcalloc(c->pool, chlen);
@@ -197,8 +206,8 @@ ngx_stream_ssl_preread_handler(ngx_stream_session_t *s)
             }
             if (dec_ok == 1) {
                 ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
-                        "ssl_preread: ECH success outer_sni: %s inner_sni: %s",
-                        (outer_sni?outer_sni:"NONE"),(inner_sni?inner_sni:"NONE"));
+                    "ssl_preread: ECH success outer_sni: %s inner_sni: %s",
+                    (outer_sni?outer_sni:"NONE"),(inner_sni?inner_sni:"NONE"));
                 /* swap 'em over, but add back extra data if any */
                 memcpy(p, inp, innerlen);
                 if (msglen > chlen) {
@@ -209,6 +218,10 @@ ngx_stream_ssl_preread_handler(ngx_stream_session_t *s)
                 }
                 c->buffer->last = last;
             }
+        } else {
+            ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
+                "ssl_preread: not a CH, contentype: %x, h/s type: %x",
+                ((uint8_t)p[0]), ((uint8_t)p[5]));
         }
     }
 #endif
