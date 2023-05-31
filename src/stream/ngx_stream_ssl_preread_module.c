@@ -194,7 +194,7 @@ ngx_int_t ngx_stream_do_ech(
                                     inp, &innerlen,
                                     &hrrtok, &toklen);
         if (ctx->ech_state == 1) {
-            OPENSSL_free(ctx->hrrtok); /* we can free that now */
+            OPENSSL_free(hrrtok); /* we can free that now */
             ctx->hrrtok = NULL;
         }
         if (rv != 1) {
