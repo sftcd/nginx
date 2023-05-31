@@ -140,9 +140,7 @@ ngx_int_t ngx_stream_do_ech(
     unsigned char *hrrtok = NULL, *chstart = NULL, *inp = NULL;
     size_t toklen = 0, chlen = 0, msglen = 0, innerlen = 0;
 
-    ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
-                    "do_ech: checking ECH");
-    ngx_log_debug0(NGX_LOG_DEBUG_STREAM, c->log, 0, "checking ECH");
+    ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0, "do_ech: checking ECH");
     chstart = p;
     /*
      * chew up bogus change cipher spec, if one's there when we're
@@ -156,10 +154,11 @@ ngx_int_t ngx_stream_do_ech(
         && p[4] == 1
         && p[5] == 1) {
         chstart += 6;
+        ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0, "do_ech: skipped CCS");
     }
     /*
-     * sanity checks that we are dealing with a TLSv1.3 ClientHello
-     * and to establish CH length (in case of early data)
+     * check that we are dealing with a TLSv1.3 ClientHello
+     * and establish CH length (in case of early data)
      */
     if (chstart[0] == 22 /* handshake */
         && chstart[1] == 3 /* tls 1.2 or 1.3 */
@@ -170,12 +169,10 @@ ngx_int_t ngx_stream_do_ech(
         msglen = *last - chstart; /* in case of early data */
         if (msglen != chlen) {
             ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
-                    "do_ech: message (%z) longer than CH (%z)",
-                    msglen, chlen);
+                "do_ech: message (%z) longer than CH (%z)", msglen, chlen);
         } else {
             ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
-                    "do_ech: message only has CH (%z)",
-                    chlen);
+                "do_ech: message only has CH (%z)", chlen);
         }
         /* we'll at least try for ECH */
         inp = ngx_pcalloc(c->pool, chlen);
@@ -185,19 +182,21 @@ ngx_int_t ngx_stream_do_ech(
         innerlen = chlen;
         if (ctx->ech_state != 0) {
             ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
-                "do_ech: ECH 2nd time (HRR), toklen = %d",
-                (int)ctx->hrrtoklen);
+                "do_ech: ECH 2nd go (HRR), toklen = %d", (int)ctx->hrrtoklen);
             hrrtok = ctx->hrrtok;
             toklen = ctx->hrrtoklen;
         } else {
-            ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
-                "do_ech: ECH 1st time");
+            ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0, "do_ech: ECH 1st time");
         }
         rv = SSL_CTX_ech_raw_decrypt(sscf->ssl->ctx, dec_ok,
                                     &inner_sni, &outer_sni,
                                     chstart, chlen,
                                     inp, &innerlen,
                                     &hrrtok, &toklen);
+        if (ctx->ech_state == 1) {
+            OPENSSL_free(ctx->hrrtok); /* we can free that now */
+            ctx->hrrtok = NULL;
+        }
         if (rv != 1) {
             ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
                 "do_ech: ECH decrypt failed (%d)", rv);
@@ -211,11 +210,6 @@ ngx_int_t ngx_stream_do_ech(
                 /* store hrrtok from 1st CH, in case needed later */
                 ctx->hrrtok = hrrtok;
                 ctx->hrrtoklen = toklen;
-            }
-            if (ctx->ech_state == 1) {
-                /* we can free that now */
-                OPENSSL_free(ctx->hrrtok);
-                ctx->hrrtok = NULL;
             }
             /* increment ech_state */
             ctx->ech_state += 1;
@@ -234,7 +228,7 @@ ngx_int_t ngx_stream_do_ech(
         }
     } else {
         ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
-            "do_ech: not a CH or CCS, contentype: %x, h/s type: %x",
+            "do_ech: not a CH or CCS, contentype: %02x, h/s type: %02x",
             ((uint8_t)p[0]), ((uint8_t)p[5]));
     }
     return NGX_OK;

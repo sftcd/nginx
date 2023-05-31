@@ -1728,8 +1728,7 @@ ngx_stream_proxy_process(ngx_stream_session_t *s, ngx_uint_t from_upstream,
                     echrv = ngx_stream_do_ech(sscf, ctx, c, b->last,
                                               &bend, &dec_ok);
                     if (echrv == NGX_OK && dec_ok == 1) {
-                        /* adjust size */
-                        n = bend - b->last;
+                        n = bend - b->last; /* adjust size */
                     }
                 }
             }
