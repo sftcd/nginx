@@ -1469,10 +1469,11 @@ ngx_ssl_passwords_cleanup(void *data)
 static int load_echkeys(ngx_ssl_t *ssl, ngx_str_t *dirname)
 {
     /*
-     * Try load any good looking public/private ECH values found in files in that directory
+     * Try load any good looking public/private ECH values found in files
+     * in that directory
      *
-     * This code is derived from what I added to openssl s_server, (and then lighttpd) which 
-     * you can find around https://github.com/sftcd/lighttpd1.4/blob/master/src/mod_openssl.c#L984
+     * This code is derived from what I added to openssl s_server, (and
+     * then lighttpd)
      *
      */
     ngx_dir_t thedir;

@@ -228,8 +228,8 @@ ngx_int_t ngx_stream_do_ech(
         }
     } else {
         ngx_ssl_error(NGX_LOG_NOTICE, c->log, 0,
-            "do_ech: not a CH or CCS, contentype: %02x, h/s type: %02x",
-            ((uint8_t)p[0]), ((uint8_t)p[5]));
+            "do_ech: not a CH or CCS, contentype: %z, h/s type: %z",
+            chstart[0], chstart[5]);
     }
     return NGX_OK;
 }
