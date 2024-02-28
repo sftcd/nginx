@@ -1,0 +1,64 @@
+Origin: https://github.com/openresty/openresty/blob/master/patches/nginx-1.21.4-ssl_cert_cb_yield.patch
+# HG changeset patch
+# User Yichun Zhang <agentzh@openresty.org>
+# Date 1451762084 28800
+#      Sat Jan 02 11:14:44 2016 -0800
+# Node ID 449f0461859c16e95bdb18e8be6b94401545d3dd
+# Parent  78b4e10b4367b31367aad3c83c9c3acdd42397c4
+SSL: handled SSL_CTX_set_cert_cb() callback yielding.
+
+OpenSSL 1.0.2+ introduces SSL_CTX_set_cert_cb() to allow custom
+callbacks to serve the SSL certificiates and private keys dynamically
+and lazily. The callbacks may yield for nonblocking I/O or sleeping.
+Here we added support for such usage in NGINX 3rd-party modules
+(like ngx_lua) in NGINX's event handlers for downstream SSL
+connections.
+
+--- a/src/event/ngx_event_openssl.c
++++ b/src/event/ngx_event_openssl.c
+@@ -2078,6 +2078,21 @@ ngx_ssl_handshake(ngx_connection_t *c)
+         return NGX_AGAIN;
+     }
+ 
++    if (sslerr == SSL_ERROR_WANT_X509_LOOKUP) {
++        c->read->handler = ngx_ssl_handshake_handler;
++        c->write->handler = ngx_ssl_handshake_handler;
++
++        if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
++            return NGX_ERROR;
++        }
++
++        if (ngx_handle_write_event(c->write, 0) != NGX_OK) {
++            return NGX_ERROR;
++        }
++
++        return NGX_AGAIN;
++    }
++
+     if (sslerr == SSL_ERROR_WANT_WRITE) {
+         c->write->ready = 0;
+         c->read->handler = ngx_ssl_handshake_handler;
+@@ -2094,6 +2109,23 @@ ngx_ssl_handshake(ngx_connection_t *c)
+         return NGX_AGAIN;
+     }
+ 
++#if OPENSSL_VERSION_NUMBER >= 0x10002000L
++    if (sslerr == SSL_ERROR_WANT_X509_LOOKUP) {
++        c->read->handler = ngx_ssl_handshake_handler;
++        c->write->handler = ngx_ssl_handshake_handler;
++
++        if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
++            return NGX_ERROR;
++        }
++
++        if (ngx_handle_write_event(c->write, 0) != NGX_OK) {
++            return NGX_ERROR;
++        }
++
++        return NGX_AGAIN;
++    }
++#endif
++
+     err = (sslerr == SSL_ERROR_SYSCALL) ? ngx_errno : 0;
+ 
+     c->ssl->no_wait_shutdown = 1;

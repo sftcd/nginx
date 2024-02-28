@@ -1,0 +1,78 @@
+# Nginx debconf translations
+# Copyright (C) 2016 Christos Trochalakis
+# This file is distributed under the same license as the nginx package.
+# Christos Trochalakis <ctrochalakis@debian.org>, 2016.
+# Changes:
+# - Initial translation
+# Jonathan Bustillos <jathanblackred@openmailbox.com>, 2017.
+#
+# Traductores, si no conocen el formato PO, merece la pena leer la
+# documentación de gettext, especialmente las secciones dedicadas a este
+# formato, por ejemplo ejecutando:
+# info -n '(gettext)PO Files'
+# info -n '(gettext)Header Entry'
+#
+# Equipo de traducción al español, por favor lean antes de traducir
+# los siguientes documentos:
+#
+# - El proyecto de traducción de Debian al español
+# http://www.debian.org/intl/spanish/
+# especialmente las notas y normas de traducción en
+# http://www.debian.org/intl/spanish/notas
+#
+# - La guía de traducción de po's de debconf:
+# /usr/share/doc/po-debconf/README-trans
+# o http://www.debian.org/intl/l10n/po-debconf/README-trans
+msgid ""
+msgstr ""
+"Project-Id-Version: nginx\n"
+"Report-Msgid-Bugs-To: nginx@packages.debian.org\n"
+"POT-Creation-Date: 2016-10-04 20:03+0300\n"
+"PO-Revision-Date: 2017-02-07 11:07-0600\n"
+"Last-Translator: Jonathan Bustillos <jathanblackred@openmailbox.com>\n"
+"Language-Team: Debian Spanish <debian-l10n-spanish@lists.debian.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Gtranslator 2.91.6\n"
+
+#. Type: note
+#. Description
+#: ../nginx-common.templates:1001
+msgid "Possible insecure nginx log files"
+msgstr "Posibles archivos de registro inseguros de nginx"
+
+#. Type: note
+#. Description
+#: ../nginx-common.templates:1001
+msgid ""
+"The following log files under /var/log/nginx directory are symlinks owned by "
+"www-data:"
+msgstr ""
+"Los siguientes archivos de registro en el directorio /var/log/nginx son "
+"enlaces simbólicos propiedad de www-data:"
+
+#. Type: note
+#. Description
+#: ../nginx-common.templates:1001
+msgid "${logfiles}"
+msgstr "${logfiles}"
+
+#. Type: note
+#. Description
+#: ../nginx-common.templates:1001
+msgid ""
+"Since nginx 1.4.4-4 /var/log/nginx was owned by www-data. As a result www-"
+"data could symlink log files to sensitive locations, which in turn could "
+"lead to privilege escalation attacks. Although /var/log/nginx permissions "
+"are now fixed it is possible that such insecure links already exist. So, "
+"please make sure to check the above locations."
+msgstr ""
+"Dado nginx 1.4.4-4 /var/log/nginx era propiedad de www-data. Como resultado, "
+"www-data podría enlazar archivos de registro a ubicaciones sensibles, lo que "
+"a su vez podría dar lugar a ataques de escalamiento de privilegios. Aunque "
+"los permisos de /var/log/nginx están ahora arreglados, es posible que dichos "
+"enlaces inseguros ya existan. Por lo tanto, asegúrese de comprobar las "
+"ubicaciones anteriores."

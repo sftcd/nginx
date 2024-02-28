@@ -1,0 +1,15 @@
+#!/bin/sh
+# 20220710
+# Jan Mojzis
+# Public domain
+
+#change directory to $AUTOPKGTEST_TMP
+cd "${AUTOPKGTEST_TMP}"
+
+# do simple curl
+curl --silent --fail -o /dev/null -w "response_code: %{http_code}\n" http://127.0.0.1/
+
+# test if nginx runs after reboot
+if [ x"${AUTOPKGTEST_REBOOT_MARK}" = x ]; then
+  /tmp/autopkgtest-reboot rebootmark
+fi

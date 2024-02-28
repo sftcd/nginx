@@ -1,0 +1,8 @@
+debian/build-src/auto usr/share/nginx/src/
+debian/build-src/src usr/share/nginx/src/
+debian/build-src/conf_flags usr/share/nginx/src/
+debian/libnginx-mod.abisubstvars usr/share/nginx/src/debian/
+debian/debhelper/nginx.pm usr/share/perl5/Debian/Debhelper/Sequence/
+debian/debhelper/dh_nginx usr/bin/
+debian/debhelper/nginx_mod.pm usr/share/perl5/Debian/Debhelper/Buildsystem/
+debian/autoscripts/* usr/share/debhelper/autoscripts/

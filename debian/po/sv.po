@@ -1,0 +1,58 @@
+# Swedish translation of nginx debconf messages
+# Copyright (C) 2016 Christos Trochalakis
+# This file is distributed under the same license as the nginx package.
+# Christos Trochalakis <ctrochalakis@debian.org>, 2016.
+# Peter Kvillegård <peterkvillegard@posteo.net>, 2023.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: nginx 1.24.0-1\n"
+"Report-Msgid-Bugs-To: nginx@packages.debian.org\n"
+"POT-Creation-Date: 2016-10-04 20:03+0300\n"
+"PO-Revision-Date: 2023-08-21 19:01+0200\n"
+"Last-Translator: Peter Kvillegård <peterkvillegard@posteo.net>\n"
+"Language-Team: Swedish <debian-l10n-swedish@lists.debian.org>\n"
+"Language: sv\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Poedit 3.2.2\n"
+
+#. Type: note
+#. Description
+#: ../nginx-common.templates:1001
+msgid "Possible insecure nginx log files"
+msgstr "Möjligen osäkra loggfiler för nginx"
+
+#. Type: note
+#. Description
+#: ../nginx-common.templates:1001
+msgid ""
+"The following log files under /var/log/nginx directory are symlinks owned by "
+"www-data:"
+msgstr ""
+"Följande loggfiler i katalogen /var/log/nginx är symboliska länkar som ägs "
+"av www-data:"
+
+#. Type: note
+#. Description
+#: ../nginx-common.templates:1001
+msgid "${logfiles}"
+msgstr "${logfiles}"
+
+#. Type: note
+#. Description
+#: ../nginx-common.templates:1001
+msgid ""
+"Since nginx 1.4.4-4 /var/log/nginx was owned by www-data. As a result www-"
+"data could symlink log files to sensitive locations, which in turn could "
+"lead to privilege escalation attacks. Although /var/log/nginx permissions "
+"are now fixed it is possible that such insecure links already exist. So, "
+"please make sure to check the above locations."
+msgstr ""
+"Före nginx 1.4.4-4 ägdes /var/log/nginx av www-data, vilket innebar att www-"
+"data kunde skapa loggfiler som var symboliska länkar till känsliga platser, "
+"vilket i sin tur kunde leda till behörighetsintrång. Även om rättigheterna "
+"för /var/log/nginx är fixade nu så är det möjligt att sådana osäkra länkar "
+"finns kvar. Se till att kontrollera ovan nämnda platser."

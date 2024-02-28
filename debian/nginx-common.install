@@ -1,0 +1,6 @@
+contrib/vim/* usr/share/vim/addons
+debian/conf/* etc/nginx
+debian/apport/source_nginx.py usr/share/apport/package-hooks
+debian/ufw/nginx etc/ufw/applications.d
+debian/vim/nginx.yaml usr/share/vim/registry
+docs/html/index.html usr/share/nginx/html/

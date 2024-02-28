@@ -1,0 +1,3 @@
+0003-define_gnu_source-on-other-glibc-based-platforms.patch
+nginx-fix-pidfile.patch
+nginx-ssl_cert_cb_yield.patch

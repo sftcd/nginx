@@ -1,0 +1,59 @@
+#!/bin/sh
+set -e
+
+. /usr/share/debconf/confmodule
+
+case "$1" in
+  configure)
+    logdir="/var/log/nginx"
+
+    # Allow local admin to override
+    if ! dpkg-statoverride --list "$logdir" >/dev/null; then
+      chown root:adm $logdir
+      chmod 0755 $logdir
+    fi
+
+    # Secure default logfiles on fresh installations
+    if [ -z "$2" ]; then
+      access_log="$logdir/access.log"
+      error_log="$logdir/error.log"
+
+      if [ ! -e "$access_log" ]; then
+        touch "$access_log"
+        chmod 640 "$access_log"
+        chown www-data:adm "$access_log"
+      fi
+
+      if [ ! -e "$error_log" ]; then
+        touch "$error_log"
+        chmod 640 "$error_log"
+        chown www-data:adm "$error_log"
+      fi
+    fi
+
+    # If a symlink doesn't exist and can be created, then create it.
+    if [ -z $2 ] && [ ! -e /etc/nginx/sites-enabled/default ] &&
+       [ -d /etc/nginx/sites-enabled ] && [ -d /etc/nginx/sites-available ]; then
+      ln -s /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
+    fi
+
+    # Create a default index page when not already present.
+    if [ ! -e /var/www/html/index.nginx-debian.html ]; then
+      mkdir -p /var/www/html
+      cp /usr/share/nginx/html/index.html /var/www/html/index.nginx-debian.html
+    fi
+
+    ;;
+
+  abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+  *)
+    echo "postinst called with unknown argument \`$1'" >&2
+    exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

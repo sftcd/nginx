@@ -1,0 +1,25 @@
+#!/bin/sh
+set -e
+
+cat <<EOF > "/etc/nginx/sites-enabled/default"
+server {
+  listen 80 default_server;
+  root /var/www/html;
+
+  location /loc1.html {
+    add_after_body /loc2.html;
+  }
+
+  location /loc2.html {
+    ssi on;
+  }
+}
+EOF
+mkdir -p /var/www/html
+echo '<p>Hi from location 1 !</p>' > /var/www/html/loc1.html
+echo '<p>Hi from location 2 on <!--#echo var="host" --> !</p>' > /var/www/html/loc2.html
+
+nginx -t
+invoke-rc.d nginx restart || { journalctl -n all -xu nginx.service; exit 1; }
+
+curl --fail -w "response_code: %{http_code}\n" http://127.0.0.1/loc1.html
