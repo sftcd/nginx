@@ -63,7 +63,7 @@ jobs:
 
       - name: Test packages
         run: |
-          mmdebstrap --chrooted-customize-hook="curl -L 'https://github.com/defo-project/ech-dev-utils/archive/refs/heads/main.tar.gz' | tar xz; cd ech-dev-utils-fix_usr; PACKAGING=1 scripts/testnginx.sh" \
+          mmdebstrap --chrooted-customize-hook="curl -L 'https://github.com/defo-project/ech-dev-utils/archive/refs/heads/main.tar.gz' | tar xz; cd ech-dev-utils; PACKAGING=1 scripts/testnginx.sh" \
             --variant=essential --include=ca-certificates,nginx,curl unstable /dev/null \
             "deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian unstable main" \
             "deb [trusted=yes] https://github.com/defo-project/openssl/raw/packages/ /" \
