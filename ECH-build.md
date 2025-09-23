@@ -45,6 +45,7 @@ Then an option to build NGINX is:
 $ cd /home/user/code
 $ git clone https://github.com/sftcd/nginx.git
 $ cd nginx
+$ git checkout ECH-shared
 $ ./auto/configure --with-debug --prefix=nginx --with-http_ssl_module --with-openssl=/home/user/code/openssl-for-nginx --with-openssl-opt="--debug" --with-http_v2_module
 $ make
 ...stuff...
