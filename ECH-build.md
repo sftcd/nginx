@@ -91,7 +91,7 @@ AQALZXhhbXBsZS5vcmcAAA==
 > [!NOTE]
 > The January 2025 lighttpd web server release included ECH and adopted a
 > naming convention for ECH PEM files that their names ought end in `.ech`.
-> This PR follows that covention.
+> This PR follows that convention.
 
 The ECHConfig value then needs to be published in an HTTPS resource record in
 the DNS, so as to be accessible as shown below:
