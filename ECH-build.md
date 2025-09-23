@@ -77,7 +77,7 @@ used for NGINX configuration.
 ~# mkdir -p /etc/nginx/echkeydir
 ~# chmod 700 /etc/nginx/echkeydir
 ~# cd /etc/nginx/echkeydir
-~# $OSSL ech -public-name example.com -o example.com.pem.ech
+~# $OSSL ech -public_name example.com -out example.com.pem.ech
 ~# cat example.com.pem.ech
 -----BEGIN PRIVATE KEY-----
 MC4CAQAwBQYDK2VuBCIEIJi22Im2rJ/lJqzNFZdGfsVfmknXAc8xz3fYPhD0Na5I
